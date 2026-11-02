@@ -194,12 +194,27 @@ input:focus{outline:none;border-color:var(--pink)}
     return d.toISOString().slice(0, 10);
   }
 
-  async function getJSON(url){
-    var tk = token(), opt = tk ? {headers:{Authorization:'Bearer ' + tk}} : {};
+  // 依序嘗試：Bearer header → 網址帶 token（不觸發 CORS 預檢）→ 不帶 token
+  var goodMode = null;
+  async function tryFetch(url, mode, tk){
+    var opt = {};
+    if (mode === 'header') opt.headers = {Authorization:'Bearer ' + tk};
+    if (mode === 'query') url += (url.indexOf('?') < 0 ? '?' : '&') + 'token=' + encodeURIComponent(tk);
     var r = await fetch(url, opt);
     var j = await r.json().catch(function(){ return {}; });
-    if (!r.ok || (j.status && j.status !== 200)) throw new Error(j.msg || ('HTTP ' + r.status));
+    if (!r.ok || (j.status && j.status !== 200)) { var e = new Error(j.msg || ('HTTP ' + r.status)); e.http = true; throw e; }
     return j.data || [];
+  }
+  async function getJSON(url){
+    var tk = token();
+    var modes = tk ? ['header', 'query', 'none'] : ['none'];
+    if (goodMode && modes.indexOf(goodMode) >= 0) modes = [goodMode].concat(modes.filter(function(m){ return m !== goodMode; }));
+    var last;
+    for (var k = 0; k < modes.length; k++) {
+      try { var d = await tryFetch(url, modes[k], tk); goodMode = modes[k]; return d; }
+      catch(e) { last = e; if (e.http && modes[k] !== 'none') continue; }
+    }
+    throw last;
   }
 
   async function fetchSnapshot(codes, got){
