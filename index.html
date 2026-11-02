@@ -99,7 +99,7 @@ input:focus{outline:none;border-color:var(--pink)}
   <p class="worth" id="worth"><small>NT$</small>—</p>
   <div class="stats">
     <div><p class="stat-label">累積損益</p><div class="pl" id="pl">—</div></div>
-    <div><p class="stat-label">今日損益</p><div class="pl" id="today">—</div></div>
+    <div><p class="stat-label" id="todayLabel">今日損益</p><div class="pl" id="today">—</div></div>
   </div>
   <div class="status">
     <i class="live" id="live"></i>
@@ -114,7 +114,7 @@ input:focus{outline:none;border-color:var(--pink)}
   <ul id="list"></ul>
   <button class="add" id="addBtn" type="button">＋ 新增持股</button>
 
-  <p class="foot">報價來自 FinMind。有填 Sponsor 金鑰時，盤中每 30 秒抓一次即時價；沒填或抓不到時，改用最近一個交易日的收盤價。損益沒有扣手續費和證交稅，會跟券商 App 差一點點。點任一檔可以修改代號、股數或均價。</p>
+  <p class="foot">報價來自 FinMind。設定好即時報價網址後，盤中每 30 秒抓一次即時價；沒設定或抓不到時，改用最近一個交易日的收盤價。損益沒有扣手續費和證交稅，會跟券商 App 差一點點。點任一檔可以修改代號、股數或均價。</p>
 </div>
 
 <dialog id="ed">
@@ -136,9 +136,11 @@ input:focus{outline:none;border-color:var(--pink)}
 </dialog>
 
 <dialog id="setDlg">
-  <h3>FinMind 金鑰</h3>
-  <p class="sub">貼上你的 FinMind API token，盤中就會自動抓即時價。金鑰只存在這台裝置的瀏覽器裡，不會出現在網頁原始碼。</p>
-  <label for="fToken">API token</label>
+  <h3>報價設定</h3>
+  <p class="sub">兩個都只存在這台裝置的瀏覽器裡，不會出現在網頁原始碼。</p>
+  <label for="fWorker">即時報價網址（Cloudflare Worker）</label>
+  <input id="fWorker" class="txt" autocomplete="off" spellcheck="false" placeholder="https://xxx.workers.dev">
+  <label for="fToken">FinMind token（抓收盤價用）</label>
   <input id="fToken" class="txt" autocomplete="off" spellcheck="false">
   <div class="actions">
     <button class="btn" id="setCancel" type="button">取消</button>
@@ -148,7 +150,7 @@ input:focus{outline:none;border-color:var(--pink)}
 
 <script>
 (function(){
-  var KEY = 'fatdog-holdings-v2', TKEY = 'fatdog-finmind-token';
+  var KEY = 'fatdog-holdings-v2', TKEY = 'fatdog-finmind-token', WKEY = 'fatdog-worker-url';
   var API = 'https://api.finmindtrade.com/api/v4/';
   var DEFAULTS = [
     {code:'00406A', name:'主動中信台灣收益', shares:10000, avg:8.62},
@@ -172,6 +174,7 @@ input:focus{outline:none;border-color:var(--pink)}
 
   function save(){ lsSet(KEY, JSON.stringify(holdings)); }
   function token(){ return (lsGet(TKEY) || '').trim(); }
+  function worker(){ return (lsGet(WKEY) || '').trim().replace(/\/+$/, ''); }
   function fmt(n, d){ return n.toLocaleString('zh-TW', {minimumFractionDigits:d||0, maximumFractionDigits:d||0}); }
   function sign(n){ return n > 0 ? '+' : n < 0 ? '−' : ''; }
   function cls(n){ return n > 0 ? 'up' : n < 0 ? 'down' : 'flat'; }
@@ -220,7 +223,10 @@ input:focus{outline:none;border-color:var(--pink)}
   async function fetchSnapshot(codes, got){
     var p = new URLSearchParams();
     codes.forEach(function(c){ p.append('data_id', c); });
-    var rows = await getJSON(API + 'taiwan_stock_tick_snapshot?' + p.toString());
+    var r = await fetch(worker() + '/?' + p.toString(), {cache:'no-store'});
+    var j = await r.json().catch(function(){ return {}; });
+    if (!r.ok || (j.status && j.status !== 200)) throw new Error(j.msg || ('HTTP ' + r.status));
+    var rows = j.data || [];
     rows.forEach(function(d){
       var close = Number(d.close), chg = Number(d.change_price);
       if (!(close > 0)) return;
@@ -244,7 +250,7 @@ input:focus{outline:none;border-color:var(--pink)}
     setStatus('抓報價中…', false);
     var codes = holdings.map(function(h){ return h.code; }).filter(function(c, i, a){ return c && a.indexOf(c) === i; });
     var got = {}; lastErr = '';
-    if (token()) {
+    if (worker()) {
       try { await fetchSnapshot(codes, got); }
       catch(e) { lastErr = '即時報價沒抓到（' + e.message + '），改用收盤價'; }
     }
@@ -259,7 +265,7 @@ input:focus{outline:none;border-color:var(--pink)}
 
   function schedule(){
     clearTimeout(timer);
-    var on = marketOpen() && !!token();
+    var on = marketOpen() && !!worker();
     $('live').className = 'live' + (on ? ' on' : '');
     if (on) timer = setTimeout(refresh, 30000);
   }
@@ -276,6 +282,10 @@ input:focus{outline:none;border-color:var(--pink)}
       if (x && x.prev != null) { td += (x.price - x.prev) * h.shares; tdBase += x.prev * h.shares; tdCount++; }
     });
     var pl = value - cost, pct = cost ? pl / cost * 100 : 0;
+    var tpToday = new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Taipei'}).format(new Date());
+    var latest = Object.keys(quotes).map(function(k){ return String(quotes[k].time).slice(0, 10); }).sort().pop() || tpToday;
+    var old = latest < tpToday, dayWord = old ? '前一交易日' : '今日';
+    $('todayLabel').textContent = dayWord + '損益' + (old ? '（' + latest.slice(5).replace('-', '/') + '）' : '');
 
     var w = $('worth'); w.textContent = '';
     var s = document.createElement('small'); s.textContent = 'NT$'; w.appendChild(s);
@@ -300,8 +310,8 @@ input:focus{outline:none;border-color:var(--pink)}
     if (live.length) msg = '即時價 ' + live.map(function(x){ return x.time; }).sort().pop().slice(5, 19);
     else if (times.length) msg = '收盤價 ' + times.map(function(x){ return x.time; }).sort().pop().slice(5, 10);
     else msg = '還沒有報價';
-    if (marketOpen() && token()) msg += '，盤中每 30 秒更新';
-    if (!token()) msg += '，到「設定」貼金鑰可看即時價';
+    if (marketOpen() && worker()) msg += '，盤中每 30 秒更新';
+    if (!worker()) msg += '，到「設定」填即時報價網址可看即時價';
     if (nFail) msg += '，' + nFail + ' 檔抓不到';
     setStatus(lastErr || msg, !!lastErr || (nFail > 0 && !times.length));
 
@@ -328,8 +338,8 @@ input:focus{outline:none;border-color:var(--pink)}
       var chg = document.createElement('div'); chg.className = 'chg ' + (x ? cls(d) : 'flat');
       chg.textContent = x ? '累積 ' + sign(d) + fmt(Math.abs(Math.round(d))) + '（' + sign(dp) + fmt(Math.abs(dp), 2) + '%）' : '累積 —';
       var tdy = document.createElement('div'); tdy.className = 'chg';
-      if (x && x.prev != null) { var t1 = (x.price - x.prev) * h.shares; tdy.className += ' ' + cls(t1); tdy.textContent = '今日 ' + sign(t1) + fmt(Math.abs(Math.round(t1))); }
-      else { tdy.className += ' flat'; tdy.textContent = '今日 —'; }
+      if (x && x.prev != null) { var t1 = (x.price - x.prev) * h.shares; tdy.className += ' ' + cls(t1); tdy.textContent = dayWord + ' ' + sign(t1) + fmt(Math.abs(Math.round(t1))); }
+      else { tdy.className += ' flat'; tdy.textContent = dayWord + ' —'; }
       right.appendChild(val); right.appendChild(chg); right.appendChild(tdy);
 
       btn.appendChild(mid); btn.appendChild(right);
@@ -372,16 +382,15 @@ input:focus{outline:none;border-color:var(--pink)}
 
   // token settings
   var setDlg = $('setDlg');
-  $('setBtn').addEventListener('click', function(){ $('fToken').value = token(); show(setDlg); });
+  $('setBtn').addEventListener('click', function(){ $('fToken').value = token(); $('fWorker').value = lsGet(WKEY) || ''; show(setDlg); });
   $('setCancel').addEventListener('click', function(){ hide(setDlg); });
-  $('setSave').addEventListener('click', function(){ lsSet(TKEY, $('fToken').value.trim()); hide(setDlg); refresh(); });
+  $('setSave').addEventListener('click', function(){ lsSet(TKEY, $('fToken').value.trim()); lsSet(WKEY, $('fWorker').value.trim()); hide(setDlg); refresh(); });
 
   [ed, setDlg].forEach(function(d){ d.addEventListener('click', function(e){ if (e.target === d) hide(d); }); });
   $('refreshBtn').addEventListener('click', refresh);
   document.addEventListener('visibilitychange', function(){ if (!document.hidden) refresh(); });
 
   render();
-  if (!token()) setStatus('先用收盤價。到「設定」貼上 FinMind 金鑰，盤中就會自動更新即時價', false);
   refresh();
 })();
 </script>
