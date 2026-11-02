@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>胖狗家產實時監控系統</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐶</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FCEEF1; --panel:#FFFFFF; --ink:#3B2A2F; --muted:#8C7479;
+  --line:#F2D6DD; --pink:#EE7E9C; --up:#E0464D; --down:#23966A; --chip:#FFF4EA;
+  --num:"Fredoka","Noto Sans TC",system-ui,sans-serif;
+  --text:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#271C21; --panel:#36282E; --ink:#FBEEF1; --muted:#C2A9B0;
+    --line:#4A3840; --chip:#43323A; --up:#FF6B71; --down:#3CC48E;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#271C21; --panel:#36282E; --ink:#FBEEF1; --muted:#C2A9B0;
+  --line:#4A3840; --chip:#43323A; --up:#FF6B71; --down:#3CC48E;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--text);line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:560px;margin:0 auto;padding:20px 18px 48px}
+.up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--muted)}
+
+.top{display:flex;justify-content:space-between;align-items:center;margin:0 0 14px}
+h1{font-size:15px;font-weight:700;margin:0;letter-spacing:.04em;color:var(--muted)}
+.icon-btn{background:none;border:0;color:var(--muted);font:inherit;font-size:14px;font-weight:700;padding:6px 8px;border-radius:10px;cursor:pointer}
+.worth-label{font-size:14px;color:var(--muted);margin:0}
+.worth{font-family:var(--num);font-weight:700;font-size:clamp(40px,12vw,58px);line-height:1;margin:4px 0 10px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.worth small{font-size:.4em;font-weight:600;margin-right:4px;color:var(--muted)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 4px}
+.stats>div{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:10px 14px}
+.stat-label{margin:0 0 2px;font-size:13px;color:var(--muted)}
+.pl{font-family:var(--num);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.25}
+.pl span{display:block;font-size:13px}
+.status{display:flex;align-items:center;gap:8px;margin:10px 0 0;font-size:13px;color:var(--muted)}
+.status .live{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.status .live.on{background:var(--down);animation:pulse 2s infinite}
+.status .msg{flex:1}
+.status .err{color:var(--up)}
+.refresh{background:var(--chip);border:0;color:var(--ink);font:inherit;font-size:13px;font-weight:700;padding:6px 12px;border-radius:99px;cursor:pointer}
+.refresh:disabled{opacity:.5;cursor:default}
+@keyframes pulse{50%{opacity:.35}}
+
+.list-head{display:flex;justify-content:space-between;align-items:baseline;margin:26px 0 8px}
+h2{font-size:17px;margin:0;font-weight:900}
+.cost{font-size:13px;color:var(--muted);font-family:var(--num)}
+ul{list-style:none;margin:0;padding:0;background:var(--panel);border-radius:20px;border:1px solid var(--line)}
+li+li{border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;width:100%;padding:14px 16px;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.name{font-weight:700;font-size:15px;line-height:1.3}
+.meta{font-size:12.5px;color:var(--muted);font-family:var(--num);margin-top:2px}
+.warn{font-family:var(--text);color:var(--up);font-weight:700}
+.right{text-align:right;font-family:var(--num);font-variant-numeric:tabular-nums}
+.val{font-weight:600;font-size:16px}
+.chg{font-size:13px;font-weight:600}
+.add{display:block;width:100%;margin-top:12px;padding:13px;border-radius:16px;border:2px dashed var(--line);background:none;color:var(--muted);font:inherit;font-weight:700;cursor:pointer}
+.row:focus-visible,.add:focus-visible,.btn:focus-visible,.icon-btn:focus-visible,.refresh:focus-visible{outline:3px solid var(--pink);outline-offset:2px}
+.foot{font-size:12px;color:var(--muted);margin-top:22px;line-height:1.7}
+
+dialog{border:0;border-radius:22px;padding:22px;width:min(420px,calc(100vw - 32px));background:var(--panel);color:var(--ink)}
+dialog::backdrop{background:rgba(40,20,28,.45)}
+dialog h3{margin:0 0 4px;font-size:18px}
+dialog p.sub{margin:0 0 12px;font-size:13px;color:var(--muted)}
+label{display:block;font-size:13px;font-weight:700;margin:12px 0 4px}
+input{width:100%;padding:11px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font-family:var(--num);font-size:18px}
+input.txt{font-family:var(--text);font-size:16px}
+input:focus{outline:none;border-color:var(--pink)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.actions{display:flex;gap:10px;margin-top:20px}
+.btn{flex:1;padding:12px;border-radius:14px;border:0;font:inherit;font-weight:700;cursor:pointer;background:var(--chip);color:var(--ink)}
+.btn.primary{background:var(--pink);color:#fff}
+.btn.danger{flex:0 0 auto;background:none;color:var(--up);padding:12px 6px}
+@media (prefers-reduced-motion: reduce){.status .live.on{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>胖狗家產實時監控系統</h1>
+    <button class="icon-btn" id="setBtn" type="button">設定</button>
+  </div>
+
+  <p class="worth-label">胖狗目前身價</p>
+  <p class="worth" id="worth"><small>NT$</small>—</p>
+  <div class="stats">
+    <div><p class="stat-label">累積損益</p><div class="pl" id="pl">—</div></div>
+    <div><p class="stat-label">今日損益</p><div class="pl" id="today">—</div></div>
+  </div>
+  <div class="status">
+    <i class="live" id="live"></i>
+    <span class="msg" id="status">準備抓報價…</span>
+    <button class="refresh" id="refreshBtn" type="button">重新整理</button>
+  </div>
+
+  <div class="list-head">
+    <h2>胖狗的持股</h2>
+    <span class="cost" id="cost"></span>
+  </div>
+  <ul id="list"></ul>
+  <button class="add" id="addBtn" type="button">＋ 新增持股</button>
+
+  <p class="foot">報價來自 FinMind。有填 Sponsor 金鑰時，盤中每 30 秒抓一次即時價；沒填或抓不到時，改用最近一個交易日的收盤價。損益沒有扣手續費和證交稅，會跟券商 App 差一點點。點任一檔可以修改代號、股數或均價。</p>
+</div>
+
+<dialog id="ed">
+  <h3 id="edTitle">修改持股</h3>
+  <p class="sub" id="edSub"></p>
+  <div class="grid2">
+    <div><label for="fCode">代號</label><input id="fCode" autocomplete="off" autocapitalize="characters"></div>
+    <div><label for="fName">名稱</label><input id="fName" class="txt" autocomplete="off"></div>
+  </div>
+  <div class="grid2">
+    <div><label for="fShares">股數</label><input id="fShares" inputmode="numeric" autocomplete="off"></div>
+    <div><label for="fAvg">均價</label><input id="fAvg" inputmode="decimal" autocomplete="off"></div>
+  </div>
+  <div class="actions">
+    <button class="btn danger" id="delBtn" type="button">刪除</button>
+    <button class="btn" id="cancelBtn" type="button">取消</button>
+    <button class="btn primary" id="saveBtn" type="button">儲存</button>
+  </div>
+</dialog>
+
+<dialog id="setDlg">
+  <h3>FinMind 金鑰</h3>
+  <p class="sub">貼上你的 FinMind API token，盤中就會自動抓即時價。金鑰只存在這台裝置的瀏覽器裡，不會出現在網頁原始碼。</p>
+  <label for="fToken">API token</label>
+  <input id="fToken" class="txt" autocomplete="off" spellcheck="false">
+  <div class="actions">
+    <button class="btn" id="setCancel" type="button">取消</button>
+    <button class="btn primary" id="setSave" type="button">儲存</button>
+  </div>
+</dialog>
+
+<script>
+(function(){
+  var KEY = 'fatdog-holdings-v2', TKEY = 'fatdog-finmind-token';
+  var API = 'https://api.finmindtrade.com/api/v4/';
+  var DEFAULTS = [
+    {code:'00406A', name:'主動中信台灣收益', shares:10000, avg:8.62},
+    {code:'00409A', name:'主動復華全球50',   shares:25000, avg:9.05},
+    {code:'0050',   name:'元大台灣50',       shares:3000,  avg:103.63},
+    {code:'00878',  name:'國泰永續高股息',   shares:20000, avg:33.48},
+    {code:'00919',  name:'群益台灣精選高息', shares:5000,  avg:32.40},
+    {code:'009816', name:'凱基台灣TOP50',    shares:5000,  avg:16.13},
+    {code:'2885',   name:'元大金',           shares:6000,  avg:72.57}
+  ];
+
+  function lsGet(k){ try { return localStorage.getItem(k); } catch(e) { return null; } }
+  function lsSet(k, v){ try { localStorage.setItem(k, v); } catch(e) {} }
+
+  var holdings;
+  try { holdings = JSON.parse(lsGet(KEY)); } catch(e) { holdings = null; }
+  if (!Array.isArray(holdings) || !holdings.length) holdings = DEFAULTS.map(function(h){ return Object.assign({}, h); });
+  var quotes = {};   // code -> {price, prev, time, src}
+  var failed = {};   // code -> true when no quote this round
+  var busy = false, timer = null, lastErr = '';
+
+  function save(){ lsSet(KEY, JSON.stringify(holdings)); }
+  function token(){ return (lsGet(TKEY) || '').trim(); }
+  function fmt(n, d){ return n.toLocaleString('zh-TW', {minimumFractionDigits:d||0, maximumFractionDigits:d||0}); }
+  function sign(n){ return n > 0 ? '+' : n < 0 ? '−' : ''; }
+  function cls(n){ return n > 0 ? 'up' : n < 0 ? 'down' : 'flat'; }
+  function $(id){ return document.getElementById(id); }
+  function q(h){ return quotes[h.code]; }
+  function px(h){ var x = q(h); return x ? x.price : h.avg; }
+
+  function taipeiNow(){
+    var p = {};
+    new Intl.DateTimeFormat('en-US', {timeZone:'Asia/Taipei', weekday:'short', hour:'2-digit', minute:'2-digit', hour12:false})
+      .formatToParts(new Date()).forEach(function(x){ p[x.type] = x.value; });
+    return {day:p.weekday, min:(parseInt(p.hour,10) % 24) * 60 + parseInt(p.minute,10)};
+  }
+  function marketOpen(){
+    var t = taipeiNow();
+    return ['Sat','Sun'].indexOf(t.day) < 0 && t.min >= 540 && t.min <= 815;
+  }
+  function daysAgo(n){
+    var d = new Date(Date.now() - n * 864e5);
+    return d.toISOString().slice(0, 10);
+  }
+
+  async function getJSON(url){
+    var tk = token(), opt = tk ? {headers:{Authorization:'Bearer ' + tk}} : {};
+    var r = await fetch(url, opt);
+    var j = await r.json().catch(function(){ return {}; });
+    if (!r.ok || (j.status && j.status !== 200)) throw new Error(j.msg || ('HTTP ' + r.status));
+    return j.data || [];
+  }
+
+  async function fetchSnapshot(codes, got){
+    var p = new URLSearchParams();
+    codes.forEach(function(c){ p.append('data_id', c); });
+    var rows = await getJSON(API + 'taiwan_stock_tick_snapshot?' + p.toString());
+    rows.forEach(function(d){
+      var close = Number(d.close), chg = Number(d.change_price);
+      if (!(close > 0)) return;
+      quotes[d.stock_id] = {price:close, prev:isFinite(chg) ? close - chg : null, time:String(d.date || ''), src:'live'};
+      got[d.stock_id] = true;
+    });
+  }
+
+  async function fetchDaily(code, got){
+    var rows = await getJSON(API + 'data?dataset=TaiwanStockPrice&data_id=' + encodeURIComponent(code) + '&start_date=' + daysAgo(14));
+    if (!rows.length) throw new Error('no data');
+    var last = rows[rows.length - 1];
+    var prev = rows.length > 1 ? Number(rows[rows.length - 2].close) : Number(last.close) - Number(last.spread);
+    quotes[code] = {price:Number(last.close), prev:isFinite(prev) ? prev : null, time:String(last.date), src:'close'};
+    got[code] = true;
+  }
+
+  async function refresh(){
+    if (busy) return;
+    busy = true; $('refreshBtn').disabled = true;
+    setStatus('抓報價中…', false);
+    var codes = holdings.map(function(h){ return h.code; }).filter(function(c, i, a){ return c && a.indexOf(c) === i; });
+    var got = {}; lastErr = '';
+    if (token()) {
+      try { await fetchSnapshot(codes, got); }
+      catch(e) { lastErr = '即時報價沒抓到（' + e.message + '），改用收盤價'; }
+    }
+    var rest = codes.filter(function(c){ return !got[c]; });
+    await Promise.all(rest.map(function(c){ return fetchDaily(c, got).catch(function(){}); }));
+    failed = {};
+    codes.forEach(function(c){ if (!got[c]) failed[c] = true; });
+    busy = false; $('refreshBtn').disabled = false;
+    render();
+    schedule();
+  }
+
+  function schedule(){
+    clearTimeout(timer);
+    var on = marketOpen() && !!token();
+    $('live').className = 'live' + (on ? ' on' : '');
+    if (on) timer = setTimeout(refresh, 30000);
+  }
+
+  function setStatus(text, isErr){
+    var s = $('status'); s.textContent = text; s.className = 'msg' + (isErr ? ' err' : '');
+  }
+
+  function render(){
+    var value = 0, cost = 0, td = 0, tdBase = 0, tdCount = 0;
+    holdings.forEach(function(h){
+      var x = q(h);
+      value += px(h) * h.shares; cost += h.avg * h.shares;
+      if (x && x.prev != null) { td += (x.price - x.prev) * h.shares; tdBase += x.prev * h.shares; tdCount++; }
+    });
+    var pl = value - cost, pct = cost ? pl / cost * 100 : 0;
+
+    var w = $('worth'); w.textContent = '';
+    var s = document.createElement('small'); s.textContent = 'NT$'; w.appendChild(s);
+    w.appendChild(document.createTextNode(fmt(Math.round(value))));
+
+    var plEl = $('pl'); plEl.className = 'pl ' + cls(pl);
+    plEl.textContent = sign(pl) + fmt(Math.abs(Math.round(pl)));
+    var sp = document.createElement('span'); sp.textContent = sign(pct) + fmt(Math.abs(pct), 2) + '%'; plEl.appendChild(sp);
+
+    var tEl = $('today'); tEl.textContent = '';
+    var tsp = document.createElement('span');
+    if (!tdCount) { tEl.className = 'pl flat'; tEl.textContent = '—'; tsp.textContent = '等報價'; }
+    else { var tp = tdBase ? td / tdBase * 100 : 0; tEl.className = 'pl ' + cls(td); tEl.textContent = sign(td) + fmt(Math.abs(Math.round(td))); tsp.textContent = sign(tp) + fmt(Math.abs(tp), 2) + '%'; }
+    tEl.appendChild(tsp);
+
+    $('cost').textContent = '總成本 NT$' + fmt(Math.round(cost));
+
+    var times = Object.keys(quotes).map(function(k){ return quotes[k]; });
+    var live = times.filter(function(x){ return x.src === 'live'; });
+    var nFail = Object.keys(failed).length;
+    var msg;
+    if (live.length) msg = '即時價 ' + live.map(function(x){ return x.time; }).sort().pop().slice(5, 19);
+    else if (times.length) msg = '收盤價 ' + times.map(function(x){ return x.time; }).sort().pop().slice(5, 10);
+    else msg = '還沒有報價';
+    if (marketOpen() && token()) msg += '，盤中每 30 秒更新';
+    if (!token()) msg += '，到「設定」貼金鑰可看即時價';
+    if (nFail) msg += '，' + nFail + ' 檔抓不到';
+    setStatus(lastErr || msg, !!lastErr || (nFail > 0 && !times.length));
+
+    var list = $('list'); list.textContent = '';
+    var order = holdings.map(function(h, i){ return i; }).sort(function(a, b){ return px(holdings[b]) * holdings[b].shares - px(holdings[a]) * holdings[a].shares; });
+    order.forEach(function(i){
+      var h = holdings[i], x = q(h);
+      var v = px(h) * h.shares, c = h.avg * h.shares, d = v - c, dp = c ? d / c * 100 : 0;
+      var share = value ? v / value * 100 : 0;
+
+      var li = document.createElement('li');
+      var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'row';
+      btn.setAttribute('aria-label', '修改 ' + h.name);
+      var mid = document.createElement('div');
+      var nm = document.createElement('div'); nm.className = 'name'; nm.textContent = h.name;
+      var meta = document.createElement('div'); meta.className = 'meta';
+      meta.textContent = h.code + ' ・ 占 ' + fmt(share, 1) + '% ・ ' + fmt(h.shares) + ' 股 ・ ';
+      if (x) meta.appendChild(document.createTextNode('市價 ' + fmt(x.price, 2)));
+      else { var wn = document.createElement('span'); wn.className = 'warn'; wn.textContent = failed[h.code] ? '抓不到報價，先用均價' : '等報價'; meta.appendChild(wn); }
+      mid.appendChild(nm); mid.appendChild(meta);
+
+      var right = document.createElement('div'); right.className = 'right';
+      var val = document.createElement('div'); val.className = 'val'; val.textContent = fmt(Math.round(v));
+      var chg = document.createElement('div'); chg.className = 'chg ' + (x ? cls(d) : 'flat');
+      chg.textContent = x ? '累積 ' + sign(d) + fmt(Math.abs(Math.round(d))) + '（' + sign(dp) + fmt(Math.abs(dp), 2) + '%）' : '累積 —';
+      var tdy = document.createElement('div'); tdy.className = 'chg';
+      if (x && x.prev != null) { var t1 = (x.price - x.prev) * h.shares; tdy.className += ' ' + cls(t1); tdy.textContent = '今日 ' + sign(t1) + fmt(Math.abs(Math.round(t1))); }
+      else { tdy.className += ' flat'; tdy.textContent = '今日 —'; }
+      right.appendChild(val); right.appendChild(chg); right.appendChild(tdy);
+
+      btn.appendChild(mid); btn.appendChild(right);
+      btn.addEventListener('click', function(){ openEd(i); });
+      li.appendChild(btn); list.appendChild(li);
+    });
+  }
+
+  // holdings editor
+  var ed = $('ed'), editing = -1;
+  function show(d){ if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', ''); }
+  function hide(d){ if (d.close) d.close(); else d.removeAttribute('open'); }
+  function num(id){ var v = parseFloat(String($(id).value).replace(/,/g, '')); return isFinite(v) ? v : null; }
+  function openEd(i){
+    editing = i;
+    var h = i >= 0 ? holdings[i] : {code:'', name:'', shares:'', avg:''};
+    $('edTitle').textContent = i >= 0 ? '修改 ' + h.name : '新增持股';
+    $('edSub').textContent = '市價會用代號自動抓，這裡只要填股數和均價';
+    $('fCode').value = h.code; $('fName').value = h.name; $('fShares').value = h.shares; $('fAvg').value = h.avg;
+    $('delBtn').style.display = i >= 0 ? '' : 'none';
+    show(ed);
+  }
+  $('saveBtn').addEventListener('click', function(){
+    var code = $('fCode').value.trim().toUpperCase(), name = $('fName').value.trim(), shares = num('fShares'), avg = num('fAvg');
+    if (!code || !name || shares == null || avg == null) { $('edSub').textContent = '代號、名稱、股數和均價都要填喔'; return; }
+    var h = editing >= 0 ? holdings[editing] : {};
+    var codeChanged = h.code !== code;
+    h.code = code; h.name = name; h.shares = shares; h.avg = avg;
+    if (editing < 0) holdings.push(h);
+    save(); hide(ed); render();
+    if (codeChanged) refresh();
+  });
+  $('cancelBtn').addEventListener('click', function(){ hide(ed); });
+  $('delBtn').addEventListener('click', function(){
+    if (editing < 0) return;
+    if (!confirm('確定要把「' + holdings[editing].name + '」從胖狗的持股移除？')) return;
+    holdings.splice(editing, 1); save(); hide(ed); render();
+  });
+  $('addBtn').addEventListener('click', function(){ openEd(-1); });
+
+  // token settings
+  var setDlg = $('setDlg');
+  $('setBtn').addEventListener('click', function(){ $('fToken').value = token(); show(setDlg); });
+  $('setCancel').addEventListener('click', function(){ hide(setDlg); });
+  $('setSave').addEventListener('click', function(){ lsSet(TKEY, $('fToken').value.trim()); hide(setDlg); refresh(); });
+
+  [ed, setDlg].forEach(function(d){ d.addEventListener('click', function(e){ if (e.target === d) hide(d); }); });
+  $('refreshBtn').addEventListener('click', refresh);
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden) refresh(); });
+
+  render();
+  if (!token()) setStatus('先用收盤價。到「設定」貼上 FinMind 金鑰，盤中就會自動更新即時價', false);
+  refresh();
+})();
+</script>
+</body>
+</html>
